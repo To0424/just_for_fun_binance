@@ -1,0 +1,102 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: binance-db
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin123
+      POSTGRES_DB: binance_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d binance_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - binance-net
+
+  cpp-fetcher:
+    build:
+      context: ./cpp-fetcher
+      dockerfile: Dockerfile
+    container_name: binance-fetcher
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: admin123
+      DB_NAME: binance_db
+      MIN_STORE_INTERVAL_MS: 1000
+      WS_RECONNECT_DELAY_SEC: 5
+    restart: unless-stopped
+    networks:
+      - binance-net
+
+  cpp-api:
+    build:
+      context: ./cpp-api
+      dockerfile: Dockerfile
+    container_name: binance-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: admin123
+      DB_NAME: binance_db
+      API_PORT: 8080
+    restart: unless-stopped
+    networks:
+      - binance-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8080
+    container_name: binance-dashboard
+    ports:
+      - "3000:3000"
+    depends_on:
+      - cpp-api
+    restart: unless-stopped
+    networks:
+      - binance-net
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: binance-pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_ENHANCED_COOKIE_PROTECTION: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    restart: unless-stopped
+    networks:
+      - binance-net
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+networks:
+  binance-net:
+    driver: bridge

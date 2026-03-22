@@ -1,0 +1,23 @@
+# Build artifacts
+build/
+*.o
+*.exe
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+postgres_data/
+
+# Node
+node_modules/
+.next/
+frontend/node_modules/
+frontend/.next/
+
+# OS
+.DS_Store
+Thumbs.db
